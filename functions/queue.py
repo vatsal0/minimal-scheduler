@@ -61,16 +61,38 @@ def _fmt_gpus(gpus) -> str:
     return "[" + ",".join(str(g) for g in gpus) + "]"
 
 
+# Render all timestamps in this TZ (IANA name, e.g. "America/New_York").
+# Empty/unset → system local time, which is UTC on these machines.
+_TZ = None
+_tz_name = os.environ.get("MINSCHED_TZ", "").strip()
+if _tz_name:
+    try:
+        from zoneinfo import ZoneInfo
+        _TZ = ZoneInfo(_tz_name)
+    except Exception as e:
+        sys.stderr.write(f"warning: MINSCHED_TZ={_tz_name!r} not loadable ({e}); "
+                         f"falling back to system time\n")
+
+
+def _localtime(ts: float):
+    """time.struct_time in the configured TZ, or system local if unset."""
+    if _TZ is None:
+        return time.localtime(ts)
+    # datetime → struct_time so the existing strftime calls keep working
+    from datetime import datetime
+    return datetime.fromtimestamp(ts, tz=_TZ).timetuple()
+
+
 def _fmt_clock(ts: float) -> str:
-    """Wall-clock HH:MM:SS in local time."""
-    return time.strftime("%H:%M:%S", time.localtime(ts))
+    """Wall-clock HH:MM:SS in the configured TZ."""
+    return time.strftime("%H:%M:%S", _localtime(ts))
 
 
 def _fmt_timestamp(ts) -> str:
-    """Local-time 'YYYY-MM-DD HH:MM:SS' (full date + time to the second)."""
+    """'YYYY-MM-DD HH:MM:SS' in the configured TZ."""
     if not ts:
         return "?"
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+    return time.strftime("%Y-%m-%d %H:%M:%S", _localtime(ts))
 
 
 def _fmt_duration(seconds) -> str:

@@ -73,6 +73,8 @@ sudo MINSCHED_PY=/mnt/vast/vatsal/miniconda3/bin/python \
 | Stop          | `sudo systemctl stop gpu_queue` |
 | Uninstall     | `sudo bash uninstall.sh` (or do it by hand: `sudo systemctl disable --now gpu_queue && sudo rm /etc/systemd/system/gpu_queue.service`, plus delete the marker block from `~/.bashrc`) |
 
+`queue` renders timestamps in the IANA timezone set by `MINSCHED_TZ` (e.g. `America/New_York`); unset = system time (UTC on these nodes). Set it in your bashrc next to the other `MINSCHED_*` exports.
+
 After install, `exec bash` (or open a new shell) to pick up the shell helpers:
 
 ```bash

@@ -218,6 +218,8 @@ $BASHRC_BEGIN
 export MINSCHED_QUEUE_DIR="$QUEUE_DIR"
 export MINSCHED_REPO="$REPO_ROOT"
 export MINSCHED_PY="$PYTHON_BIN"
+# IANA TZ name for the queue CLI's timestamp formatting. Empty = system tz.
+export MINSCHED_TZ=""
 submit() { "\$MINSCHED_PY" "\$MINSCHED_REPO/functions/submit.py" "\$@"; }
 queue()  { "\$MINSCHED_PY" "\$MINSCHED_REPO/functions/queue.py"  "\$@"; }
 log()    { "\$MINSCHED_PY" "\$MINSCHED_REPO/functions/log.py"    "\$@"; }
