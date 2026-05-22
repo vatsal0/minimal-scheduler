@@ -129,6 +129,27 @@ fi
 $SUDO mkdir -p "$QUEUE_DIR/pending" "$QUEUE_DIR/running" "$QUEUE_DIR/done" "$QUEUE_DIR/cancel"
 $SUDO chown -R "$RUN_AS_USER:$RUN_AS_USER" "$QUEUE_DIR"
 
+# Create a stub .env if it doesn't exist. Mode 600 because it'll hold secrets
+# (WANDB_API_KEY, HF_TOKEN, etc.). Gitignored.
+ENV_FILE="$REPO_ROOT/.env"
+if [[ ! -f "$ENV_FILE" ]]; then
+    $AS_INVOKER bash -c "cat > '$ENV_FILE' <<'STUB'
+# Env vars merged into every submitted job's spec by functions/submit.py.
+# Lines are KEY=VAL. # comments and blank lines ignored. \`export\` prefix ok.
+# This file is gitignored — safe to put secrets here.
+#
+# Examples:
+# WANDB_API_KEY=...
+# WANDB_PROJECT=my-project
+# HF_TOKEN=...
+STUB
+"
+    $AS_INVOKER chmod 600 "$ENV_FILE"
+    echo "[install] created stub $ENV_FILE (chmod 600, gitignored) — fill in your secrets"
+else
+    echo "[install] $ENV_FILE already exists — leaving alone"
+fi
+
 # --- 2. ~/.ssh/config ControlMaster block ---
 echo
 if [[ ${#NODE_IPS[@]} -gt 0 ]]; then

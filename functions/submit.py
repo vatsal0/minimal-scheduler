@@ -31,6 +31,36 @@ DEFAULT_QUEUE_DIR = (
 # skip (e.g. for a single-node install).
 SHARED_FS_PREFIX = os.environ.get("MINSCHED_SHARED_FS", "/mnt/vast")
 SKIP_VAST_CHECK = os.environ.get("MINSCHED_SKIP_VAST_CHECK") == "1"
+# Default dotenv lives at <repo>/.env (gitignored). Override via MINSCHED_ENV_FILE.
+DEFAULT_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+
+
+def _parse_env_file(path: Path) -> dict:
+    """Minimal KEY=VAL parser. Blank lines and `#` comments ignored.
+
+    No shell expansion, no quote stripping beyond paired ' or ". Lines that
+    don't look like KEY=VAL are skipped with a stderr warning.
+    """
+    out = {}
+    if not path.exists():
+        return out
+    for n, raw in enumerate(path.read_text().splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Allow `export KEY=VAL` for copy-paste convenience.
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        if "=" not in line:
+            sys.stderr.write(f"{path}:{n}: skipping malformed line: {raw!r}\n")
+            continue
+        k, v = line.split("=", 1)
+        k = k.strip()
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+            v = v[1:-1]
+        out[k] = v
+    return out
 
 
 def _atomic_write_json(path: Path, obj) -> None:
@@ -60,7 +90,8 @@ def _next_id(queue_dir: Path) -> int:
 
 
 def submit(cmd, gpus: int, name: str = None, cwd: str = None,
-         env: dict = None, queue_dir: Path = DEFAULT_QUEUE_DIR) -> int:
+         env: dict = None, queue_dir: Path = DEFAULT_QUEUE_DIR,
+         env_file: Path = DEFAULT_ENV_FILE) -> int:
     """Enqueue a job and return its id.
 
     Args:
@@ -70,6 +101,8 @@ def submit(cmd, gpus: int, name: str = None, cwd: str = None,
         cwd:  working directory (defaults to the caller's cwd).
         env:  extra env vars on top of the daemon's inherited env.
         queue_dir: queue/ dir (default: <repo>/queue).
+        env_file: dotenv file merged into env, with `env` (from --env)
+                  taking precedence. Missing file = silently skip.
     """
     queue_dir = Path(queue_dir)
     pending = queue_dir / "pending"
@@ -87,6 +120,10 @@ def submit(cmd, gpus: int, name: str = None, cwd: str = None,
                     f"cd into {SHARED_FS_PREFIX} (or pass --cwd <path under it>) "
                     f"and try again. Set MINSCHED_SKIP_VAST_CHECK=1 to override."
                 )
+    # Merge dotenv into job env. Explicit --env wins (so per-submit overrides
+    # are still possible without editing the file).
+    merged_env = _parse_env_file(Path(env_file))
+    merged_env.update(env or {})
     jid = _next_id(queue_dir)
     spec = {
         "id": jid,
@@ -98,7 +135,7 @@ def submit(cmd, gpus: int, name: str = None, cwd: str = None,
         "submit_cwd": submit_cwd,
         "gpus": int(gpus),
         "submitted_at": time.time(),
-        "env": dict(env or {}),
+        "env": merged_env,
     }
     _atomic_write_json(pending / f"{jid}.json", spec)
     return jid
@@ -115,7 +152,11 @@ def main():
                    help="Working directory (default: caller's cwd).")
     p.add_argument("--queue-dir", type=Path, default=DEFAULT_QUEUE_DIR)
     p.add_argument("--env", action="append", default=[],
-                   metavar="KEY=VAL", help="Extra env var (repeatable).")
+                   metavar="KEY=VAL", help="Extra env var (repeatable). "
+                   "Overrides values from the dotenv file.")
+    p.add_argument("--env-file", type=Path, default=DEFAULT_ENV_FILE,
+                   help=f"Dotenv file to merge into the job env "
+                        f"(default: {DEFAULT_ENV_FILE}, gitignored).")
     p.add_argument("cmd", nargs=argparse.REMAINDER,
                    help="Command to run. Use '--' before the command.")
     args = p.parse_args()
@@ -134,7 +175,7 @@ def main():
         env[k] = v
 
     jid = submit(cmd=cmd, gpus=args.gpus, name=args.name, cwd=args.cwd,
-               env=env, queue_dir=args.queue_dir)
+               env=env, queue_dir=args.queue_dir, env_file=args.env_file)
     print(f"submitted job {jid}")
     return 0
 

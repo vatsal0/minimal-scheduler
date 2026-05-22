@@ -11,7 +11,9 @@ only ever invoked on the home node, which talks to remote nodes via ssh.
   is allocated under a flock'd `.next_id` counter so two concurrent submits
   don't collide. Refuses if your cwd (or `--cwd`) isn't under `/mnt/vast`
   (the executing node has to see it); override with `MINSCHED_SKIP_VAST_CHECK=1`.
-  Importable: `from functions.submit import submit(cmd, gpus, ...)`.
+  Reads `<repo>/.env` (gitignored secrets file, KEY=VAL lines) and merges
+  it into the job's env; `--env KEY=VAL` overrides file values. Importable:
+  `from functions.submit import submit(cmd, gpus, ...)`.
 - `queue.py` — Reads `<queue>/state.json` and the three subdirs, renders
   bordered tables: per-node GPU usage; RUNNING with `node` column; PENDING;
   recent DONE. `--json` for machine-readable dump.

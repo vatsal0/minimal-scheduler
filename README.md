@@ -22,7 +22,7 @@ library, ssh, and systemd.
 
 | File | Bash | Role |
 |---|---|---|
-| `functions/submit.py` | `submit` | Drops a jobspec JSON into `<queue>/pending/`. Refuses if your cwd isn't under `/mnt/vast` (executing node must see it). Records `submit_cwd` so logs land next to where you submitted. Importable as `from functions.submit import submit`. |
+| `functions/submit.py` | `submit` | Drops a jobspec JSON into `<queue>/pending/`. Refuses if your cwd isn't under `/mnt/vast` (executing node must see it). Records `submit_cwd` so logs land next to where you submitted. Merges `<repo>/.env` into the job's env (see [Job env vars](#job-env-vars-wandb-hf-tokens-etc)). Importable as `from functions.submit import submit`. |
 | `functions/queue.py`  | `queue`  | Prints per-node GPU usage + running/pending/done tables. Shows which node each running job is on. |
 | `functions/log.py`    | `log`    | Cats stdout from `<submit_cwd>/job-<id>.out`; `-f` follows; `--err` for stderr. |
 | `functions/cancel.py` | `cancel` | Pending: moves spec to `<queue>/done/` directly. Running: drops a marker at `<queue>/cancel/<id>`; the daemon ssh's into the executing node next tick to SIGTERM the remote process group. |
@@ -33,6 +33,7 @@ library, ssh, and systemd.
 - **Queue runtime**: `<repo>/queue/` by default (overridable via `MINSCHED_QUEUE_DIR`). Contains `pending/ running/ done/ cancel/ state.json .next_id daemon.log` and short-lived `<id>.remote_pid` files in `running/`.
 - **Per-job logs**: `<submit_cwd>/job-<id>.out` / `.err`. `submit_cwd` is validated to be under `/mnt/vast` so the executing node can write and you can read.
 - **nodes.txt**: machine-local, gitignored. Lives at repo root.
+- **.env**: gitignored secrets file at repo root. `submit` merges its contents into every job's env. Created as a stub by `install.sh` (mode 600).
 
 ## Install
 
@@ -96,6 +97,35 @@ python functions/submit.py --gpus 4 --name myrun -- python train.py ...
 from functions.submit import submit
 submit(cmd=["python", "train.py", "--foo", "bar"], gpus=8, name="myrun")
 ```
+
+## Job env vars (wandb, HF tokens, etc.)
+
+Remote nodes don't inherit your shell env — they only see what's baked into
+the job's spec. To make `WANDB_API_KEY` / `HF_TOKEN` / etc. available, put
+them in `<repo>/.env`:
+
+```bash
+# /mnt/vast/vatsal/minimal-scheduler/.env  (gitignored, chmod 600)
+WANDB_API_KEY=...
+WANDB_PROJECT=my-project
+HF_TOKEN=...
+```
+
+Format: one `KEY=VAL` per line. `#` comments and blank lines are ignored.
+`export KEY=VAL` is also accepted (for copy-paste convenience). No shell
+expansion — `$VAR` and `$(...)` are kept literal. Paired quotes around the
+value are stripped.
+
+Every `submit` reads this file and merges it into the job's `env`. Explicit
+`--env KEY=VAL` flags override values from the file:
+
+```bash
+submit --gpus 4 --env WANDB_RUN_GROUP=ablation-1 -- python train.py
+#                ↑ from CLI, overrides .env if WANDB_RUN_GROUP is also there
+```
+
+Point at a different file with `--env-file /path/to/other.env`. `install.sh`
+creates a stub `.env` (mode 600) on a fresh install.
 
 Logs land in the dir you ran `submit` from:
 

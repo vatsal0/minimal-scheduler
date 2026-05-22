@@ -7,3 +7,4 @@ __pycache__/
 # Runtime state + machine-local config
 queue/
 nodes.txt
+.env
