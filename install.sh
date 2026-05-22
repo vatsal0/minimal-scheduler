@@ -192,10 +192,11 @@ else
     cat > "$SNIPPET" <<EOF
 
 $BASHRC_BEGIN
-# Override any of these in your shell to point elsewhere.
-export MINSCHED_QUEUE_DIR="\${MINSCHED_QUEUE_DIR:-$QUEUE_DIR}"
-: "\${MINSCHED_REPO:=$REPO_ROOT}"
-: "\${MINSCHED_PY:=$PYTHON_BIN}"
+# Authoritative — overrides any inherited value (e.g. from a parent process
+# that was launched before a reinstall). Edit this file to point elsewhere.
+export MINSCHED_QUEUE_DIR="$QUEUE_DIR"
+export MINSCHED_REPO="$REPO_ROOT"
+export MINSCHED_PY="$PYTHON_BIN"
 submit() { "\$MINSCHED_PY" "\$MINSCHED_REPO/functions/submit.py" "\$@"; }
 queue()  { "\$MINSCHED_PY" "\$MINSCHED_REPO/functions/queue.py"  "\$@"; }
 log()    { "\$MINSCHED_PY" "\$MINSCHED_REPO/functions/log.py"    "\$@"; }
