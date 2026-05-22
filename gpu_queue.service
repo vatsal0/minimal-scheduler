@@ -1,0 +1,20 @@
+[Unit]
+Description=GPU job queue daemon
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+ExecStart=__PYTHON__ __REPO_ROOT__/gpu_queue.py
+WorkingDirectory=__REPO_ROOT__
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=__USER_HOME__
+Environment=MINSCHED_QUEUE_DIR=__QUEUE_DIR__
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:__QUEUE_DIR__/daemon.log
+StandardError=append:__QUEUE_DIR__/daemon.log
+
+[Install]
+WantedBy=multi-user.target
